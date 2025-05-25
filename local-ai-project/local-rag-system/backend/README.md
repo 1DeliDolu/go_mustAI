@@ -25,12 +25,14 @@ The backend is organized into several key directories:
 ### Installation
 
 1. Clone the repository:
+
    ```
    git clone https://github.com/yourusername/local-rag-system.git
    cd local-rag-system/backend
    ```
 
 2. Install dependencies:
+
    ```
    go mod tidy
    ```
@@ -40,11 +42,12 @@ The backend is organized into several key directories:
 ### Running the Application
 
 To start the backend server, run:
+
 ```
 go run cmd/server/main.go
 ```
 
-The server will start on `http://localhost:8080`.
+The server will start on `http://localhost:8082`.
 
 ### API Endpoints
 

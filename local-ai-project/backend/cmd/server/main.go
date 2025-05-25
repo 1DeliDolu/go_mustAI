@@ -2,11 +2,11 @@
 package main
 
 import (
-	"log"
 	"local-ai-project/backend/internal/config"
 	"local-ai-project/backend/internal/handlers"
 	"local-ai-project/backend/internal/services"
 	"local-ai-project/backend/internal/storage"
+	"log"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -22,9 +22,8 @@ func main() {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
 	defer db.Close()
-
 	// Initialize services
-	modelService := services.NewModelService(cfg)
+	modelService := services.NewModelService(cfg, db)
 	documentService := services.NewDocumentService(db, cfg)
 	wikiService := services.NewWikiService()
 	aiService := services.NewAIService(cfg)

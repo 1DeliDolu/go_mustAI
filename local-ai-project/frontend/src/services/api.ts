@@ -5,7 +5,7 @@ import type { WikiResult } from "../types/WikiResult";
 import type { QueryResponse } from "../types/chatMessage";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1";
+  import.meta.env.VITE_API_URL || "http://localhost:8082/api/v1";
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -4,6 +4,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"local-ai-project/backend/internal/services"
 	"local-ai-project/backend/pkg/types"
@@ -18,7 +19,7 @@ type Handler struct {
 	aiService       *services.AIService
 }
 
-func New(modelService *services.ModelService, documentService *services.DocumentService, 
+func New(modelService *services.ModelService, documentService *services.DocumentService,
 	wikiService *services.WikiService, aiService *services.AIService) *Handler {
 	return &Handler{
 		modelService:    modelService,
@@ -31,8 +32,9 @@ func New(modelService *services.ModelService, documentService *services.Document
 // Health check
 func (h *Handler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
-		"message": "Local AI API is running",
+		"status":    "ok",
+		"timestamp": time.Now().Unix(),
+		"message":   "Local AI Project API is running",
 	})
 }
 
@@ -47,30 +49,35 @@ func (h *Handler) ListModels(c *gin.Context) {
 }
 
 func (h *Handler) DownloadModel(c *gin.Context) {
-	var req types.DownloadModelRequest
+	var req struct {
+		Name string `json:"name" binding:"required"`
+		URL  string `json:"url" binding:"required"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := h.modelService.DownloadModel(req.Name, req.URL)
-	if err != nil {
+	if err := h.modelService.DownloadModel(req.Name, req.URL); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Model download started"})
+	c.JSON(http.StatusOK, gin.H{"message": "Model downloaded successfully"})
 }
 
 func (h *Handler) LoadModel(c *gin.Context) {
-	var req types.LoadModelRequest
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := h.aiService.LoadModel(req.Name)
-	if err != nil {
+	if err := h.modelService.LoadModel(req.Name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -80,11 +87,16 @@ func (h *Handler) LoadModel(c *gin.Context) {
 
 func (h *Handler) DeleteModel(c *gin.Context) {
 	name := c.Param("name")
-	err := h.modelService.DeleteModel(name)
-	if err != nil {
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Model name is required"})
+		return
+	}
+
+	if err := h.modelService.DeleteModel(name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Model deleted successfully"})
 }
 
@@ -111,8 +123,8 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Document uploaded successfully",
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Document uploaded successfully",
 		"document": document,
 	})
 }
@@ -125,8 +137,7 @@ func (h *Handler) DeleteDocument(c *gin.Context) {
 		return
 	}
 
-	err = h.documentService.DeleteDocument(id)
-	if err != nil {
+	if err := h.documentService.DeleteDocument(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -134,7 +145,7 @@ func (h *Handler) DeleteDocument(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Document deleted successfully"})
 }
 
-// Wiki search handler
+// Wiki handlers
 func (h *Handler) SearchWiki(c *gin.Context) {
 	query := c.Query("q")
 	if query == "" {
@@ -159,20 +170,23 @@ func (h *Handler) Query(c *gin.Context) {
 		return
 	}
 
-	// Search relevant documents
-	documents, err := h.documentService.SearchDocuments(req.Query)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	startTime := time.Now()
+
+	// Search documents if requested
+	var documents []types.Document
+	if req.IncludeDocuments {
+		docs, err := h.documentService.SearchDocuments(req.Query)
+		if err == nil {
+			documents = docs
+		}
 	}
 
 	// Search wiki if requested
 	var wikiResults []types.WikiResult
 	if req.IncludeWiki {
-		wikiResults, err = h.wikiService.Search(req.Query)
-		if err != nil {
-			// Don't fail the entire request if wiki search fails
-			wikiResults = []types.WikiResult{}
+		wiki, err := h.wikiService.Search(req.Query)
+		if err == nil {
+			wikiResults = wiki
 		}
 	}
 
@@ -183,11 +197,15 @@ func (h *Handler) Query(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"response": response,
-		"sources": gin.H{
-			"documents": documents,
-			"wiki": wikiResults,
-		},
-	})
+	processingTime := time.Since(startTime).Seconds()
+
+	result := types.QueryResponse{
+		Response:       response,
+		ModelUsed:      h.aiService.GetCurrentModel(),
+		ProcessingTime: processingTime,
+	}
+	result.Sources.Documents = documents
+	result.Sources.Wiki = wikiResults
+
+	c.JSON(http.StatusOK, result)
 }

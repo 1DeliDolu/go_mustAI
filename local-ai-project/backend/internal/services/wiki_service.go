@@ -20,23 +20,10 @@ func NewWikiService() *WikiService {
 	}
 }
 
-type WikiSearchResponse struct {
-	Pages []struct {
-		ID          int    `json:"id"`
-		Key         string `json:"key"`
-		Title       string `json:"title"`
-		Extract     string `json:"extract"`
-		Description string `json:"description"`
-		Thumbnail   struct {
-			Source string `json:"source"`
-		} `json:"thumbnail"`
-	} `json:"pages"`
-}
-
 func (s *WikiService) Search(query string) ([]types.WikiResult, error) {
 	// Wikipedia search API
 	searchURL := fmt.Sprintf("%s/page/summary/%s", s.baseURL, url.QueryEscape(query))
-	
+
 	resp, err := http.Get(searchURL)
 	if err != nil {
 		return nil, err
@@ -119,7 +106,7 @@ func (s *WikiService) searchMultiple(query string) ([]types.WikiResult, error) {
 			if descriptions[i] != nil {
 				desc = descriptions[i].(string)
 			}
-			
+
 			results = append(results, types.WikiResult{
 				Title:       title.(string),
 				Description: desc,
@@ -131,43 +118,3 @@ func (s *WikiService) searchMultiple(query string) ([]types.WikiResult, error) {
 
 	return results, nil
 }
-
-// backend/internal/services/ai_service.go
-type AIService struct {
-	config      *config.Config
-	currentModel string
-	ollamaClient *http.Client
-}
-
-func NewAIService(cfg *config.Config) *AIService {
-	return &AIService{
-		config:       cfg,
-		ollamaClient: &http.Client{},
-	}
-}
-
-func (s *AIService) LoadModel(modelName string) error {
-	// For Ollama, we can pull/load the model
-	reqBody := map[string]interface{}{
-		"name": modelName,
-	}
-
-	jsonBody, _ := json.Marshal(reqBody)
-	
-	resp, err := http.Post(s.config.OllamaURL+"/api/pull", "application/json", 
-		strings.NewReader(string(jsonBody)))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to load model: %s", resp.Status)
-	}
-
-	s.currentModel = modelName
-	return nil
-}
-
-func (s *AIService) GenerateResponse(query string, documents []types.Document, wikiResults []types.WikiResult) (string, error) {
-	// Build context from documents
